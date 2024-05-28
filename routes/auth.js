@@ -10,7 +10,7 @@ const db = admin.firestore();
 const router = express.Router()
 
 const RegisterEmpolyee= async (req, res) => {
-  const {username, profile, email, gender, password, employee} = req.body;
+  const {username, profile, email, gender, password, status, designation} = req.body;
 
   try {
     const existingUser = await User.findByEmail(email);
@@ -18,7 +18,7 @@ const RegisterEmpolyee= async (req, res) => {
       return res.status(400).json({ error: "Email is already registered" });
     }
 
-    const newUser = await User.create(username, profile, email, gender, password, employee);
+    const newUser = await User.create(username, profile, email, gender, password, status, designation);
 
     const allUserData = [];
     const usersSnapshot = await db.collection('users').get();
@@ -34,7 +34,7 @@ const RegisterEmpolyee= async (req, res) => {
 };
 const login = async (req, res) => {
   const { email, password } = req.body;
-
+     //console.log("email", email);
   try {
     const user = await User.findByEmail(email);
     if (!user) {
@@ -42,9 +42,13 @@ const login = async (req, res) => {
     }
 
     const accessToken = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET);
-
+    const allUserData = [];
+    const usersSnapshot = await db.collection('users').get();
+    usersSnapshot.forEach(doc => {
+      allUserData.push(doc.data());
+    });
     // Respond with access token and all user data
-    res.json({ accessToken: accessToken, userData: user});
+    res.json({ accessToken: accessToken, userData: user,allUserData: allUserData });
   } catch (error) {
     console.error("Error logging in:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -56,6 +60,27 @@ const logout = (req, res) => {
   res.json({ message: "Logout successful" });
 };
 
+router.get('/users', async (req, res) => {
+  try {
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.get();
+
+    if (snapshot.empty) {
+      console.log('No matching documents.');
+      return res.status(404).json({ message: 'No users found' });
+    }
+
+    const users = [];
+    snapshot.forEach(doc => {
+      users.push(doc.data());
+    });
+
+    return res.json(users);
+  } catch (error) {
+    console.error('Error getting documents', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 
 // const protectedRoute = (req, res) => {
 //   res.json({ message: "This is a protected route" });
@@ -81,7 +106,7 @@ const logout = (req, res) => {
 // Routes
  router.post("/Register", RegisterEmpolyee); // Route for user signup
 router.post("/login", login); // Route for user login
-router.post("/logout", logout);
+router.get("/logout", logout);
 
 
 // router.get("/protected", authenticateToken, protectedRoute); // Protected route
