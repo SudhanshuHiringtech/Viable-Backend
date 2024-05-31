@@ -103,11 +103,11 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
     }
 
       // Get the employee's FCM token from Firestore
-  const employeeDoc = await db.collection('users').doc(employeeId).get();
-  const fcmToken = employeeDoc.data().fcmToken;
+  // const employeeDoc = await db.collection('users').doc(employeeId).get();
+  // const fcmToken = employeeDoc.data().fcmToken;
 
   // Send the notification
-  await sendNotification(fcmToken, task);
+  // await sendNotification(fcmToken, task);
 
     res.status(200).json({
       message: 'Task assigned successfully',
