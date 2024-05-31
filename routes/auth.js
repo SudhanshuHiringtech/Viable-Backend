@@ -3,35 +3,75 @@
 const express = require('express');
 const jwt = require("jsonwebtoken");
 const User = require("../model/User");
+const { v4: uuidv4 } = require('uuid');
+const multer = require("multer");
 
 const admin = require("firebase-admin");
 const db = admin.firestore();
 
+const estorage = admin.storage().bucket();
 const router = express.Router()
+const upload = multer({ storage: multer.memoryStorage() });
 
-const RegisterEmpolyee= async (req, res) => {
-  const {username, profile, email, gender, password, status, designation} = req.body;
+const bcrypt = require('bcrypt');
+
+// RegisterEmployee function to handle user registration
+const RegisterEmployee = async (req, res) => {
+  console.log(req.body);
+  console.log(req.file);
+  const { username, email, gender, password, status, designation } = req.body;
 
   try {
+    // Check if the user already exists
     const existingUser = await User.findByEmail(email);
     if (existingUser) {
       return res.status(400).json({ error: "Email is already registered" });
     }
 
-    const newUser = await User.create(username, profile, email, gender, password, status, designation);
+    // Handle profile image upload using multer
+    const profileImage = req.file; // Access the uploaded file
+    let profileImageURL = '';
 
-    const allUserData = [];
-    const usersSnapshot = await db.collection('users').get();
-    usersSnapshot.forEach(doc => {
-      allUserData.push(doc.data());
-    });
-    const response = "Successfully Register as Empolyee";
-    res.json({allUserData: allUserData });
+    if (profileImage) {
+      const profileImageFileName = `profiles/${uuidv4()}.jpg`;
+      const profileImageRef = estorage.file(profileImageFileName);
+
+      // Upload the image to Firebase Storage
+      await profileImageRef.save(profileImage.buffer, {
+        metadata: { contentType: profileImage.mimetype },
+        resumable: false
+      });
+
+      // Generate a signed URL for the profile image
+      [profileImageURL] = await profileImageRef.getSignedUrl({
+        action: 'read',
+        expires: '03-09-2491'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10); 
+
+    profile =  profileImageURL
+    password: hashedPassword
+    // Save user data to Firestore
+    User.create ( username,
+      profile,
+      email,
+      gender,
+      password,
+      status,
+      designation
+    )
+
+    const response = "Successfully Registered as Employee";
+    res.json({ message: response,});
   } catch (error) {
     console.error("Error signing up:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+
 const login = async (req, res) => {
   const { email, password } = req.body;
      //console.log("email", email);
@@ -40,15 +80,15 @@ const login = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+    
+    // const isPasswordValid = await bcrypt.compare(password, user.password);
+    // if (!isPasswordValid) {
+    //   return res.status(401).json({ error: "Invalid password" });
+    // }
 
     const accessToken = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET);
-    const allUserData = [];
-    const usersSnapshot = await db.collection('users').get();
-    usersSnapshot.forEach(doc => {
-      allUserData.push(doc.data());
-    });
     // Respond with access token and all user data
-    res.json({ accessToken: accessToken, userData: user,allUserData: allUserData });
+    res.json({ accessToken: accessToken, userData: user});
   } catch (error) {
     console.error("Error logging in:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -104,7 +144,8 @@ router.get('/users', async (req, res) => {
 // };
 
 // Routes
- router.post("/Register", RegisterEmpolyee); // Route for user signup
+router.post('/register', upload.single('profile'), RegisterEmployee);
+// Route for user signup
 router.post("/login", login); // Route for user login
 router.get("/logout", logout);
 

@@ -24,6 +24,7 @@ app.use(authRoutes);
 app.use(taskRoutes);
 
 
+
 app.get('/', (req, res) => {
   res.send("Hello World");
 });

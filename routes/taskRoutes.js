@@ -36,6 +36,25 @@ router.get('/good', async (req, res) => {
   res.json(data);
 })
 
+const sendNotification = async (fcmToken, task) => {
+  const message = {
+    notification: {
+      title: 'New Task Assigned',
+      body: `You have been assigned a new task: ${task.title}`,
+    },
+    token: fcmToken,
+  };
+
+  try {
+    await admin.messaging().send(message);
+    console.log('Notification sent successfully');
+  } catch (error) {
+    console.error('Error sending notification:', error);
+  }
+};
+
+
+
 router.post('/assigntask', upload.array('files'), async (req, res) => {
   try {
     const { status, taskDetails, employeeId, employeeName } = req.body;
@@ -56,8 +75,6 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
     if (!employeeId) {
       return res.status(400).json({ error: "Employee ID is required" });
     }
-
-
     const taskRef = await admin.firestore().collection('tasks').add(jsonData);
 
     const documentUrls = [];
@@ -76,6 +93,21 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
     await taskRef.update({
       documentUrls: documentUrls
     });
+
+
+     // If the status is "Done", move the task to the History collection
+     if (status === 'Done') {
+      const taskData = (await taskRef.get()).data();
+      await admin.firestore().collection('History').add(taskData);
+      await taskRef.delete();
+    }
+
+      // Get the employee's FCM token from Firestore
+  const employeeDoc = await db.collection('users').doc(employeeId).get();
+  const fcmToken = employeeDoc.data().fcmToken;
+
+  // Send the notification
+  await sendNotification(fcmToken, task);
 
     res.status(200).json({
       message: 'Task assigned successfully',
@@ -145,6 +177,13 @@ router.post('/updatetask', upload.array('files'), async (req, res) => {
       documentUrls: documentUrls
     });
 
+       // If the status is "Done", move the task to the History collection
+       if (status === 'Done') {
+        const taskData = (await taskRef.get()).data();
+        await admin.firestore().collection('History').add(taskData);
+        await taskRef.delete();
+      }
+
     res.status(200).json({
       message: 'Task assigned/updated successfully',
       taskId: taskRef.id,
@@ -205,6 +244,40 @@ router.get('/tasks', async (req, res) => {
     }
 
     res.status(200).json(tasks);
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+router.get('/tasksHistory', async (req, res) => {
+  try {
+    // Fetch tasks from Firestore
+    const tasksSnapshot = await db.collection('History').get();
+
+    const tasksHistory = [];
+    // Iterate through tasks
+    for (const doc of tasksSnapshot.docs) {
+      const task = doc.data();
+      task.id = doc.id; // Add document ID to the task object
+
+      // Fetch associated documentUrls from Firestore
+      const documentUrls = [];
+      for (const docUrl of task.documentUrls || []) {
+        const file = estorage.file(docUrl.storagePath);
+        const url = await file.getSignedUrl({
+          action: 'read',
+          expires: '03-09-2491' // adjust expiration date as per your requirement
+        });
+        documentUrls.push({ name: docUrl.name, url: url[0], storagePath: docUrl.storagePath });
+      }
+
+      task.documentUrls = documentUrls;
+      tasksHistory.push(task);
+    }
+
+    res.status(200).json(tasksHistory);
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ error: 'Internal Server Error' });
