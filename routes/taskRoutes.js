@@ -134,7 +134,7 @@ router.post('/updatetask', upload.array('files'), async (req, res) => {
     };
 
     // console.log("Task Data", jsonData);
-    const documents = req.files ? req.files : null ;
+    const documents = req.files;
     // console.log("Documents: ", documents);
 
     let taskRef;
