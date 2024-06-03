@@ -19,7 +19,7 @@ const bcrypt = require('bcrypt');
 const RegisterEmployee = async (req, res) => {
   console.log(req.body);
   console.log(req.file);
-  const { username, email, gender, password, status, designation } = req.body;
+  let { username, email, gender, password, status, designation } = req.body;
 
   try {
     // Check if the user already exists
@@ -52,7 +52,7 @@ const RegisterEmployee = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10); 
 
     profile =  profileImageURL
-    password: hashedPassword
+    password = hashedPassword
     // Save user data to Firestore
     User.create ( username,
       profile,

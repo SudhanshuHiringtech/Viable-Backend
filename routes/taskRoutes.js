@@ -133,9 +133,9 @@ router.post('/updatetask', upload.array('files'), async (req, res) => {
       status,
     };
 
-    console.log("Task Data", jsonData);
-    const documents = req.files;
-    console.log("Documents: ", documents);
+    // console.log("Task Data", jsonData);
+    const documents = req.files ? req.files : null ;
+    // console.log("Documents: ", documents);
 
     let taskRef;
     let documentUrls = [];
@@ -143,15 +143,17 @@ router.post('/updatetask', upload.array('files'), async (req, res) => {
     if (taskId) {
       // Update existing task
       taskRef = admin.firestore().collection('tasks').doc(taskId);
-
+      console.log("Hello");
       // Fetch existing document URLs if any
       const taskDoc = await taskRef.get();
       if (taskDoc.exists) {
+        console.log("HI");
         const taskData = taskDoc.data();
         documentUrls = taskData.documentUrls || [];
       } else {
         return res.status(404).json({ error: "Task not found" });
       }
+      
 
       // Update task details
       await taskRef.update(jsonData);
@@ -179,10 +181,17 @@ router.post('/updatetask', upload.array('files'), async (req, res) => {
 
        // If the status is "Done", move the task to the History collection
        if (status === 'Done') {
+        taskRef = admin.firestore().collection('tasks').doc(taskId);
         const taskData = (await taskRef.get()).data();
         await admin.firestore().collection('History').add(taskData);
         await taskRef.delete();
       }
+      // if (status === 'Beginning' || status === 'under Work') {
+      //   historyRef = admin.firestore().collection('History').doc(taskId);
+      //   const taskData = (await historyRef.get()).data();
+      //   await admin.firestore().collection('tasks').add(taskData);
+      //   await historyRef.delete();
+      // }
 
     res.status(200).json({
       message: 'Task assigned/updated successfully',
