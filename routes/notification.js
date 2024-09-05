@@ -75,7 +75,7 @@ const saveNotification = async (userId, title, body, userType) => {
   // Function to notify work completion
   const notifyWorkCompletion = async (employeeId, workDetails,) => {
     console.log("Sending notification...");
-    await saveNotification(employeeId, 'WorkDone', `Work Done the work  ${workDetails} now you have to verify `, 'Employee');
+    await saveNotification(employeeId, 'WorkDone', `Work Done the work  ${workDetails} now you have to verify `, 'Owner');
   };
   
   // Exporting the functions for use in other modules

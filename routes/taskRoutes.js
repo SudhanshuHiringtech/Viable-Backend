@@ -366,7 +366,8 @@ router.post('/employeeUpdateLead', upload.array('files'), async (req, res) => {
       leadId,
       taskData
     });
-    await notifyWorkCompletion(employeeId, taskData.department);
+    const ownerId = 'zeozcVW1P2RloarbiOvw'
+    await notifyWorkCompletion(ownerId, taskData.department);
   } catch (error) {
     console.error('Error updating task:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -492,7 +493,8 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
       leadId,
       taskData
     });
-    await notifyWorkCompletion(employeeId, taskData.department);
+    const ownerId = 'zeozcVW1P2RloarbiOvw'
+    await notifyWorkCompletion(ownerId, taskData.department);
   } catch (error) {
     console.error('Error updating task with documents:', error);
     res.status(500).json({ error: 'Internal Server Error' });
