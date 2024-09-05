@@ -191,7 +191,6 @@ router.get('/access-company-data', async (req, res) => {
       }
   
       let allCompanyData = [];
-      
       companyDataSnapshot.forEach(doc => {
         const docData = doc.data();
         allCompanyData.push({
