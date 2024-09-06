@@ -5,7 +5,7 @@ require('dotenv').config();
 const User = require('./model/User');
 const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/taskRoutes');
-const masterDataRoutes = require('./routes/MasterDataRoutes');
+const masterDataRoutes = require('./routes/masterDataRoutes');
 const notificationRoutes = require('./routes/notifcationRoutes'); // Corrected spelling
 const admin = require('firebase-admin');
 const http = require('http');
