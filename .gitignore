@@ -2,3 +2,4 @@
 /serviceAccountKey.json
 .vercel
 /serviceAccount.json
+.env
