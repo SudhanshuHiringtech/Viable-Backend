@@ -74,7 +74,7 @@ const RegisterEmployee = async (req, res) => {
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-     //console.log("email", email);
+    console.log("email", email);
   try {
     const user = await User.findByEmail(email);
     if (!user) {

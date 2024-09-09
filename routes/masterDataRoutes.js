@@ -3,7 +3,7 @@
 const express = require("express");
 const multer = require("multer");
 const admin = require("firebase-admin");
-const serviceAccount = require("../serviceAccountKey.json");
+const serviceAccount = require("../serviceAccount.json");
 const saltedMd5 = require('salted-md5');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
