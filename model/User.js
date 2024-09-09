@@ -7,7 +7,7 @@ require('dotenv').config();
 
 
 //console.log("AF", JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON))
-const serviceAccount = require("../serviceAccount.json");
+const serviceAccount = require("../serviceAccount.json" || "/etc/secrets/serviceAccount.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
