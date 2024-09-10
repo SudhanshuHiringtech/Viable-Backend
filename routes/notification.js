@@ -74,6 +74,9 @@ const saveNotification = async (userId, title, body, userType) => {
   
   // Function to notify work completion
   const notifyWorkCompletion = async (employeeId, workDetails,) => {
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.get();
+    console.log(snapshot);
     console.log("Sending notification...");
     await saveNotification(employeeId, 'WorkDone', `Work Done the work  ${workDetails} now you have to verify `, 'Owner');
   };

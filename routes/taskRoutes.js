@@ -528,57 +528,57 @@ router.get('/getPoFiles', async (req, res) => {
 
 
 
-// Update task route
-router.post('/updatetask', upload.array('files'), async (req, res) => {
-  try {
-    const { status, taskId } = req.body;
-    const jsonData = { status };
-    let taskRef;
-    let documentUrls = [];
+// // Update task route
+// router.post('/updatetask', upload.array('files'), async (req, res) => {
+//   try {
+//     const { status, taskId } = req.body;
+//     const jsonData = { status };
+//     let taskRef;
+//     let documentUrls = [];
 
-    if (taskId) {
-      taskRef = db.collection('tasks').doc(taskId);
-      const taskDoc = await taskRef.get();
-      if (taskDoc.exists) {
-        const taskData = taskDoc.data();
-        documentUrls = taskData.documentUrls || [];
-      } else {
-        return res.status(404).json({ error: "Task not found" });
-      }
-      await taskRef.update(jsonData);
-    } else {
-      taskRef = await db.collection('tasks').add(jsonData);
-    }
+//     if (taskId) {
+//       taskRef = db.collection('tasks').doc(taskId);
+//       const taskDoc = await taskRef.get();
+//       if (taskDoc.exists) {
+//         const taskData = taskDoc.data();
+//         documentUrls = taskData.documentUrls || [];
+//       } else {
+//         return res.status(404).json({ error: "Task not found" });
+//       }
+//       await taskRef.update(jsonData);
+//     } else {
+//       taskRef = await db.collection('tasks').add(jsonData);
+//     }
 
-    for (const document of req.files) {
-      const storagePath = `documents/${taskRef.id}/${document.originalname}`;
-      const file = estorage.file(storagePath);
-      await file.save(document.buffer, { contentType: document.mimetype });
-      const url = await file.getSignedUrl({
-        action: 'read',
-        expires: '03-09-2491' // Adjust expiration date as needed
-      });
-      documentUrls.push({ name: document.originalname, url: url[0], storagePath });
-    }
+//     for (const document of req.files) {
+//       const storagePath = `documents/${taskRef.id}/${document.originalname}`;
+//       const file = estorage.file(storagePath);
+//       await file.save(document.buffer, { contentType: document.mimetype });
+//       const url = await file.getSignedUrl({
+//         action: 'read',
+//         expires: '03-09-2491' // Adjust expiration date as needed
+//       });
+//       documentUrls.push({ name: document.originalname, url: url[0], storagePath });
+//     }
 
-    await taskRef.update({ documentUrls });
+//     await taskRef.update({ documentUrls });
 
-    if (status === 'Done') {
-      const taskData = (await taskRef.get()).data();
-      await db.collection('History').add(taskData);
-      await taskRef.delete();
-    }
+//     if (status === 'Done') {
+//       const taskData = (await taskRef.get()).data();
+//       await db.collection('History').add(taskData);
+//       await taskRef.delete();
+//     }
 
-    res.status(200).json({
-      message: 'Task assigned/updated successfully',
-      taskId: taskRef.id,
-      documentUrls
-    });
-  } catch (error) {
-    console.error('Error assigning/updating task:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
+//     res.status(200).json({
+//       message: 'Task assigned/updated successfully',
+//       taskId: taskRef.id,
+//       documentUrls
+//     });
+//   } catch (error) {
+//     console.error('Error assigning/updating task:', error);
+//     res.status(500).json({ error: 'Internal Server Error' });
+//   }
+// });
 
 
 router.post('/declineTask', async (req, res) => {
@@ -696,6 +696,29 @@ router.post('/verifiedTask', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+
+// Get history route
+router.get('/getHistory', async (req, res) => {
+  try {
+    const historySnapshot = await db.collection('history').get();
+    
+    if (historySnapshot.empty) {
+      return res.status(404).json({ message: 'No history data found' });
+    }
+
+    const historyData = [];
+    historySnapshot.forEach(doc => {
+      historyData.push({ id: doc.id, ...doc.data() });
+    });
+
+    res.status(200).json({ history: historyData });
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 
 module.exports = router;
