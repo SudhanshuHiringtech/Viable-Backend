@@ -30,19 +30,51 @@ const uploadFiles = upload.fields([
 
 
 // Upload route
+// router.post('/upload', upload.single('file'), async (req, res) => {
+//   try {
+//     const name = saltedMd5(req.file.originalname, 'SUPER-S@LT!');
+//     const fileName = name + path.extname(req.file.originalname);
+//     await estorage.file(fileName).createWriteStream().end(req.file.buffer);
+//     res.send('done');
+//   } catch (error) {
+//     console.error('Upload error:', error);
+//     res.status(500).json({ error: 'Failed to upload file' });
+//   }
+// });
+
+// Upload route
 router.post('/upload', upload.single('file'), async (req, res) => {
   try {
     const name = saltedMd5(req.file.originalname, 'SUPER-S@LT!');
     const fileName = name + path.extname(req.file.originalname);
-    await estorage.file(fileName).createWriteStream().end(req.file.buffer);
-    res.send('done');
+
+    // Upload the file to Firebase Storage
+    const file = estorage.file(fileName);
+    const writeStream = file.createWriteStream({
+      metadata: {
+        contentType: req.file.mimetype // Set the MIME type
+      }
+    });
+    console.log('File MIME Type:', req.file.mimetype); 
+
+    // Write the file buffer to the stream
+    writeStream.on('error', (error) => {
+      console.error('Upload error:', error);
+      res.status(500).json({ error: 'Failed to upload file' });
+    });
+
+    writeStream.on('finish', () => {
+      res.status(200).send('File uploaded successfully');
+    });
+
+    // Pipe the file buffer into the write stream
+    writeStream.end(req.file.buffer);
+
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Failed to upload file' });
   }
 });
-
-
 
 router.post('/get-lead', async (req, res) => {
   try {
