@@ -165,11 +165,12 @@ if (role === 'Employee') {
 
 
 
+
 router.post('/assigntask', upload.array('files'), async (req, res) => {
   try {
     console.log(req.body.data)
     const data = JSON.parse(req.body.data);
-    const {department, location, employeeId, employeeName, leadStatus } = data;
+    const {department, city, state, employeeId, employeeName, leadStatus } = data;
 
     if (!employeeId) {
       return res.status(400).json({ error: "Employee ID is required" });
@@ -189,7 +190,7 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
     } else {
       // Create a new lead
       leadRef = db.collection('leads').doc(); // Generate a new document reference
-      leadData = { leadId: leadRef.id, department, location, tasks: [], history: [] };
+      leadData = { leadId: leadRef.id, department, city, state, tasks: [], history: [] };
     }
 
     const existingTaskQuery = leadData.tasks.find(task => 
@@ -248,6 +249,7 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 router.post('/reassignTask', async (req, res) => {
   try {
@@ -412,7 +414,7 @@ router.post('/employeeUpdateLead', upload.array('files'), async (req, res) => {
 router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
   try {
     const data = JSON.parse(req.body.data);
-    const { leadId, taskId, employeeId,  leadStatus, TenderFeePayment, EWDpayment, PaymentMode, rejectORaccept, description } = data;
+    const { leadId, taskId, employeeId,  leadStatus, TenderFeePayment, EWDpayment, PaymentMode, rejectORaccept, description, masterData, poFile } = data;
 
     if (!leadId || !employeeId) {
       return res.status(400).json({ error: "leadId and employeeId are required" });
@@ -458,6 +460,12 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
     if(rejectORaccept) {
       taskData.rejectORaccept = rejectORaccept;
     }
+    if(masterData) {
+      taskData.masterData = masterData;
+    }
+    if(poFile) {
+      taskData.poFile = poFile;
+    }
     if(description) {
       taskData.description =  description;
     }
@@ -484,13 +492,23 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
           storagePath,
           documentType: folderName
         });
+     
+        const formatDate = (date) => {
+          const day = String(date.getDate()).padStart(2, '0'); // Ensure 2-digit day
+          const month = String(date.getMonth() + 1).padStart(2, '0'); // Ensure 2-digit month (getMonth is 0-based)
+          const year = date.getFullYear();
+        
+          return `${day}/${month}/${year}`; // Format as DD/MM/YYYY
+        };
 
         if (folderName === 'poFile') {
           await db.collection('poFiles').add({
             documentName: document.originalname,
+            city: leadData.city,
+            state:leadData.state,
             url,
             storagePath,
-            uploadedAt: new Date(),
+            uploadedAt: formatDate(new Date()), 
             employeeId
           });
         }
@@ -750,7 +768,6 @@ router.get('/getHistory', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 
 module.exports = router;
