@@ -42,39 +42,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// // Upload route
-// router.post('/upload', upload.single('file'), async (req, res) => {
-//   try {
-//     const name = saltedMd5(req.file.originalname, 'SUPER-S@LT!');
-//     const fileName = name + path.extname(req.file.originalname);
 
-//     // Upload the file to Firebase Storage
-//     const file = estorage.file(fileName);
-//     const writeStream = file.createWriteStream({
-//       metadata: {
-//         contentType: req.file.mimetype // Set the MIME type
-//       }
-//     });
-//     console.log('File MIME Type:', req.file.mimetype); 
-
-//     // Write the file buffer to the stream
-//     writeStream.on('error', (error) => {
-//       console.error('Upload error:', error);
-//       res.status(500).json({ error: 'Failed to upload file' });
-//     });
-
-//     writeStream.on('finish', () => {
-//       res.status(200).send('File uploaded successfully');
-//     });
-
-//     // Pipe the file buffer into the write stream
-//     writeStream.end(req.file.buffer);
-
-//   } catch (error) {
-//     console.error('Upload error:', error);
-//     res.status(500).json({ error: 'Failed to upload file' });
-//   }
-// });
 
 router.post('/get-lead', async (req, res) => {
   try {
@@ -105,7 +73,8 @@ if (role === 'Employee') {
     const leadData = doc.data();
     const leadId = leadData.leadId;
     const department = leadData.department;
-    const location = leadData.location;
+    const city = leadData.city;
+    const state = leadData.state;
     const tasks = leadData.tasks;
 
     // Filter tasks specific to the employeeId and include lead information
@@ -115,7 +84,8 @@ if (role === 'Employee') {
         ...task,
         leadId,
         department,
-        location
+        city,
+        state,
       }));
 
     // Accumulate found tasks
@@ -408,13 +378,11 @@ router.post('/employeeUpdateLead', upload.array('files'), async (req, res) => {
   }
 });
 
-
-
 // API for uploading Tender and Additional Documents with extra fields
 router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
   try {
     const data = JSON.parse(req.body.data);
-    const { leadId, taskId, employeeId,  leadStatus, TenderFeePayment, EWDpayment, PaymentMode, rejectORaccept, description, masterData, poFile } = data;
+    const { leadId, taskId, employeeId, leadStatus, TenderFeePayment, EWDpayment, PaymentMode, rejectORaccept, description, masterData, poFile } = data;
 
     if (!leadId || !employeeId) {
       return res.status(400).json({ error: "leadId and employeeId are required" });
@@ -437,104 +405,141 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
 
     // Retrieve the task data
     let taskData = leadData.tasks[taskIndex];
-    console.log(taskData);
-    // Update task details if provided
 
-        // Initialize the documents array if it doesn't exist
+    // Initialize documents array if it doesn't exist
     if (!taskData.documents) {
-          taskData.documents = [];
+      taskData.documents = [];
     }
 
-    if (leadStatus) {
-      taskData.leadStatus = leadStatus;
-    }
-    if (TenderFeePayment) {
-      taskData.TenderFeePayment = TenderFeePayment;
-    }
-    if (EWDpayment) {
-      taskData.EWDpayment = EWDpayment;
-    }
-    if (PaymentMode) {
-      taskData.PaymentMode = PaymentMode;
-    }
-    if(rejectORaccept) {
-      taskData.rejectORaccept = rejectORaccept;
-    }
-    if(masterData) {
-      taskData.masterData = masterData;
-    }
-    if(poFile) {
-      taskData.poFile = poFile;
-    }
-    if(description) {
-      taskData.description =  description;
-    }
+    // Update task details if provided
+    if (leadStatus) taskData.leadStatus = leadStatus;
+    if (TenderFeePayment) taskData.TenderFeePayment = TenderFeePayment;
+    if (EWDpayment) taskData.EWDpayment = EWDpayment;
+    if (PaymentMode) taskData.PaymentMode = PaymentMode;
+    if (rejectORaccept) taskData.rejectORaccept = rejectORaccept;
+    if (masterData) taskData.masterData = masterData;
+    if (poFile) taskData.poFile = poFile;
+    if (description) taskData.description = description;
+
     taskData.taskCondition = 'Received';
     taskData.reject = 0;
 
-    // Handle document uploads
-    const handleDocumentUpload = async (documents, folderName) => {
-      for (const document of documents) {
+    // Function to handle document uploads
+    const handleDocumentUpload = async (documents, folderName, descriptions = []) => {
+      if (descriptions.length !== documents.length) {
+        throw new Error("Descriptions should match the number of documents");
+      }
+
+      for (let i = 0; i < documents.length; i++) {
+        const document = documents[i];
+        const documentDescription = descriptions[i] || ''; // Handle description being an empty string
+
+        // Validate description
+        if (typeof documentDescription !== 'string') {
+          throw new Error("Invalid description provided");
+        }
+
+        // Generate a unique file name for the document
         const name = saltedMd5(document.originalname, 'SUPER-S@LT!');
         const fileName = name + path.extname(document.originalname);
         const storagePath = `${folderName}/${taskData.taskId}/${fileName}`;
         const file = estorage.file(storagePath);
+
+        // Save document in Firebase Storage
         await file.save(document.buffer, { contentType: document.mimetype });
 
+        // Generate a signed URL for the file
         const [url] = await file.getSignedUrl({
           action: 'read',
           expires: '03-09-2491'
         });
 
+        // Push document metadata to taskData
         taskData.documents.push({
           documentName: document.originalname,
           url,
           storagePath,
-          documentType: folderName
+          documentType: folderName,
+          description: documentDescription
         });
-     
+
+        // Format current date as DD/MM/YYYY
         const formatDate = (date) => {
-          const day = String(date.getDate()).padStart(2, '0'); // Ensure 2-digit day
-          const month = String(date.getMonth() + 1).padStart(2, '0'); // Ensure 2-digit month (getMonth is 0-based)
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
           const year = date.getFullYear();
-        
-          return `${day}/${month}/${year}`; // Format as DD/MM/YYYY
+          return `${day}/${month}/${year}`;
         };
 
+        const uploadedAt = formatDate(new Date());
+
+        // Additional Firestore storage for 'poFile' documents
         if (folderName === 'poFile') {
           await db.collection('poFiles').add({
             documentName: document.originalname,
             city: leadData.city,
-            state:leadData.state,
+            state: leadData.state,
             url,
             storagePath,
-            uploadedAt: formatDate(new Date()), 
-            employeeId
+            uploadedAt,
+            employeeId,
+            description: documentDescription
           });
         }
       }
     };
 
-    // Upload Tender Documents
+    // Handle document uploads based on request
     if (req.files.tenderDocuments) {
-      await handleDocumentUpload(req.files.tenderDocuments, 'TenderDocuments');
+      // console.log(req.body);
+      // console.log(req.body.description);
+    
+      // Strip extra quotes and handle the description correctly
+      const descriptions = req.body.description.map(desc => {
+        try {
+          return JSON.parse(desc);
+        } catch (error) {
+          return desc;
+        }
+      });
+      await handleDocumentUpload(req.files.tenderDocuments, 'TenderDocuments', descriptions);
     }
 
-    // Upload Additional Documents
     if (req.files.additionalDocuments) {
-      await handleDocumentUpload(req.files.additionalDocuments, 'AdditionalDocuments');
+      const descriptions = req.body.description.map(desc => {
+        try {
+          return JSON.parse(desc);
+        } catch (error) {
+          return desc;
+        }
+      });
+
+      await handleDocumentUpload(req.files.additionalDocuments, 'AdditionalDocuments', descriptions);
     }
 
-     // Upload PaymentRecipt Documents
-     if (req.files.paymentRecipt) {
-      await handleDocumentUpload(req.files.paymentRecipt, 'paymentRecipt');
+    if (req.files.paymentRecipt) {
+      const descriptions = req.body.description.map(desc => {
+        try {
+          return JSON.parse(desc);
+        } catch (error) {
+          return desc;
+        }
+      });
+      await handleDocumentUpload(req.files.paymentRecipt, 'paymentRecipt', descriptions);
     }
 
     if (req.files.poFile) {
-      await handleDocumentUpload(req.files.poFile, 'poFile');
+      const descriptions = req.body.description.map(desc => {
+        try {
+          return JSON.parse(desc);
+        } catch (error) {
+          return desc;
+        }
+      });
+      await handleDocumentUpload(req.files.poFile, 'poFile', descriptions);
     }
 
-    // Save the updated task data back to the lead
+    // Save updated task data back to Firestore
     leadData.tasks[taskIndex] = taskData;
     await leadRef.set(leadData);
 
@@ -543,13 +548,16 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
       leadId,
       taskData
     });
-    const ownerId = 'zeozcVW1P2RloarbiOvw'
+
+    const ownerId = 'zeozcVW1P2RloarbiOvw';
     await notifyWorkCompletion(ownerId, taskData.department);
+
   } catch (error) {
     console.error('Error updating task with documents:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 
 router.get('/getPoFiles', async (req, res) => {
@@ -718,7 +726,7 @@ router.post('/verifiedTask', async (req, res) => {
     // Update the rejectORaccept field and the Phase
     taskData.rejectORaccept = rejectORaccept;
     taskData.phase = phase;
-    taskData.taskCondition =  'Done';
+    //taskData.taskCondition =  'Done';
 
     // Save the updated task data back to the lead
     leadData.tasks[taskIndex] = taskData;
