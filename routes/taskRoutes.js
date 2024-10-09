@@ -220,8 +220,7 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
   }
 });
 
-
-router.post('/reassignTask', async (req, res) => {
+const ReassignTask = async (req, res) => {
   try {
     const { leadId, newEmployeeId, newEmployeeName, phase } = req.body;
     console.log(req.body)
@@ -264,12 +263,14 @@ router.post('/reassignTask', async (req, res) => {
       leadId,
       taskData: newTaskData
     });
-    await notifyWorkAssignment(employeeId, departmentName);
+    //await notifyWorkAssignment(newEmployeeId, departmentName);
   } catch (error) {
     console.error('Error reassigning task:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
-});
+};
+
+router.post('/reassignTask', ReassignTask);
 
 
 router.post('/employeeUpdateLead', upload.array('files'), async (req, res) => {
@@ -312,7 +313,7 @@ router.post('/employeeUpdateLead', upload.array('files'), async (req, res) => {
     }
 
     if(rejectORaccept){
-      taskData.rejectORaccept = rejectORaccept;
+      taskData.rejectORaccept = false;
     }
     if(portalName){
       taskData.portalName = portalName;
@@ -377,28 +378,30 @@ router.post('/employeeUpdateLead', upload.array('files'), async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 // API for uploading Tender and Additional Documents with extra fields
 router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
   try {
+    // Parse the request body data
     const data = JSON.parse(req.body.data);
-    const { leadId, taskId, employeeId, leadStatus, TenderFeePayment, EWDpayment, PaymentMode, rejectORaccept, description, masterData, poFile } = data;
+    const {
+      leadId, taskId, employeeId, leadStatus, TenderFeePayment, EWDpayment, PaymentMode,
+      rejectORaccept, description, masterData, poFile
+    } = data;
 
+    // Ensure required fields are provided
     if (!leadId || !employeeId) {
       return res.status(400).json({ error: "leadId and employeeId are required" });
     }
 
-    // Fetch the lead data
+    // Fetch the lead from Firestore
     const leadRef = db.collection('leads').doc(leadId);
     const leadSnapshot = await leadRef.get();
-
     if (!leadSnapshot.exists) {
       return res.status(404).json({ error: "Lead not found" });
     }
 
     let leadData = leadSnapshot.data();
     const taskIndex = leadData.tasks.findIndex(task => task.taskId === taskId);
-
     if (taskIndex === -1) {
       return res.status(404).json({ error: "Task for the given employee not found" });
     }
@@ -406,12 +409,10 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
     // Retrieve the task data
     let taskData = leadData.tasks[taskIndex];
 
-    // Initialize documents array if it doesn't exist
-    if (!taskData.documents) {
-      taskData.documents = [];
-    }
+    // Initialize documents array if not already present
+    taskData.documents = taskData.documents || [];
 
-    // Update task details if provided
+    // Update task details with any provided fields
     if (leadStatus) taskData.leadStatus = leadStatus;
     if (TenderFeePayment) taskData.TenderFeePayment = TenderFeePayment;
     if (EWDpayment) taskData.EWDpayment = EWDpayment;
@@ -426,35 +427,31 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
 
     // Function to handle document uploads
     const handleDocumentUpload = async (documents, folderName, descriptions = []) => {
-      if (descriptions.length !== documents.length) {
-        throw new Error("Descriptions should match the number of documents");
-      }
-
       for (let i = 0; i < documents.length; i++) {
         const document = documents[i];
-        const documentDescription = descriptions[i] || ''; // Handle description being an empty string
+        const documentDescription = descriptions[i] || '';
 
         // Validate description
         if (typeof documentDescription !== 'string') {
           throw new Error("Invalid description provided");
         }
 
-        // Generate a unique file name for the document
+        // Generate a unique file name
         const name = saltedMd5(document.originalname, 'SUPER-S@LT!');
         const fileName = name + path.extname(document.originalname);
         const storagePath = `${folderName}/${taskData.taskId}/${fileName}`;
         const file = estorage.file(storagePath);
 
-        // Save document in Firebase Storage
+        // Save the document in Firebase Storage
         await file.save(document.buffer, { contentType: document.mimetype });
 
-        // Generate a signed URL for the file
+        // Generate a signed URL for the document
         const [url] = await file.getSignedUrl({
           action: 'read',
           expires: '03-09-2491'
         });
 
-        // Push document metadata to taskData
+        // Add document metadata to the task data
         taskData.documents.push({
           documentName: document.originalname,
           url,
@@ -463,7 +460,7 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
           description: documentDescription
         });
 
-        // Format current date as DD/MM/YYYY
+        // Format the current date as DD/MM/YYYY
         const formatDate = (date) => {
           const day = String(date.getDate()).padStart(2, '0');
           const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -473,7 +470,7 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
 
         const uploadedAt = formatDate(new Date());
 
-        // Additional Firestore storage for 'poFile' documents
+        // Store 'poFile' documents in a separate collection
         if (folderName === 'poFile') {
           await db.collection('poFiles').add({
             documentName: document.originalname,
@@ -489,66 +486,38 @@ router.post('/employeeUpdateLead-2', uploadFiles, async (req, res) => {
       }
     };
 
-    // Handle document uploads based on request
-    if (req.files.tenderDocuments) {
-      // console.log(req.body);
-      // console.log(req.body.description);
-    
-      // Strip extra quotes and handle the description correctly
-      const descriptions = req.body.description.map(desc => {
-        try {
-          return JSON.parse(desc);
-        } catch (error) {
-          return desc;
-        }
-      });
-      await handleDocumentUpload(req.files.tenderDocuments, 'TenderDocuments', descriptions);
-    }
+    // Handle document uploads
+    const processDocuments = async (fieldName, folderName) => {
+      if (req.files[fieldName]) {
+        const descriptions = req.body.description.map(desc => {
+          try {
+            return JSON.parse(desc);
+          } catch (error) {
+            return desc;
+          }
+        });
+        await handleDocumentUpload(req.files[fieldName], folderName, descriptions);
+      }
+    };
 
-    if (req.files.additionalDocuments) {
-      const descriptions = req.body.description.map(desc => {
-        try {
-          return JSON.parse(desc);
-        } catch (error) {
-          return desc;
-        }
-      });
-
-      await handleDocumentUpload(req.files.additionalDocuments, 'AdditionalDocuments', descriptions);
-    }
-
-    if (req.files.paymentRecipt) {
-      const descriptions = req.body.description.map(desc => {
-        try {
-          return JSON.parse(desc);
-        } catch (error) {
-          return desc;
-        }
-      });
-      await handleDocumentUpload(req.files.paymentRecipt, 'paymentRecipt', descriptions);
-    }
-
-    if (req.files.poFile) {
-      const descriptions = req.body.description.map(desc => {
-        try {
-          return JSON.parse(desc);
-        } catch (error) {
-          return desc;
-        }
-      });
-      await handleDocumentUpload(req.files.poFile, 'poFile', descriptions);
-    }
+    // Upload tender, additional documents, payment receipts, and PO files
+    await processDocuments('tenderDocuments', 'TenderDocuments');
+    await processDocuments('additionalDocuments', 'AdditionalDocuments');
+    await processDocuments('paymentRecipt', 'PaymentReceipt');
+    await processDocuments('poFile', 'poFile');
 
     // Save updated task data back to Firestore
     leadData.tasks[taskIndex] = taskData;
     await leadRef.set(leadData);
 
+    // Respond with success
     res.status(200).json({
       message: 'Task updated successfully with documents',
       leadId,
       taskData
     });
 
+    // Notify task completion
     const ownerId = 'zeozcVW1P2RloarbiOvw';
     await notifyWorkCompletion(ownerId, taskData.department);
 
@@ -697,10 +666,10 @@ router.post('/declineTask', async (req, res) => {
 
 router.post('/verifiedTask', async (req, res) => {
   try {
-    const { taskId, leadId, phase, rejectORaccept } = req.body;
+    const { taskId, leadId, phase, rejectORaccept, employeeId} = req.body;
 
     // Validate the input
-    console.log(req.body)
+    console.log("DFSDS", employeeId)
     if (!leadId || !taskId) {
       return res.status(400).json({ error: "leadId and taskId are required" });
     }
@@ -741,6 +710,34 @@ router.post('/verifiedTask', async (req, res) => {
         taskData: taskData,
         timestamp: new Date().toISOString()
       });
+    }
+
+     // Check if phase is 2, and reassign the task
+     if (phase === 1) {
+      // Call the ReassignTask function
+      const userRef = db.collection('users').doc(employeeId);
+      const userSnapshot = await userRef.get();
+
+      if (!userSnapshot.exists) {
+        return res.status(404).json({ error: "New employee not found" });
+      }
+
+      // Get new employee name from user data
+      const newEmployeeData = userSnapshot.data();
+      console.log("F", newEmployeeData)
+      const newEmployeeName = newEmployeeData.username; 
+      //console.log(employeeName)
+      const reassignReq = {
+        body: {
+          leadId: leadId, // Pass the same leadId
+          newEmployeeId: employeeId, // You need to pass this from the request
+          newEmployeeName: newEmployeeName, // You need to pass this from the request
+          phase: 2,
+        }
+      };
+
+      // You can use the same `res` or create a new response object as needed
+      await ReassignTask(reassignReq, res); // Call the reassign function
     }
 
     // Send the response back to the client
