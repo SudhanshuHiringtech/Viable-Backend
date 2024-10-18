@@ -13,6 +13,47 @@ const estorage = admin.storage().bucket();
 const db = admin.firestore();
 
 const router = express.Router();
+
+const tokens = [];
+
+
+router.post("/regist", (req, res) => {
+  tokens.push(req.body.token);
+  res.status(200).json({ message: "Successfully registered FCM Token!" });
+});
+
+router.post("/notificationRoutes", async (req, res) => {
+  try {
+    const { title, body} = req.body;
+    console.log(title, "SDVS", body);
+    await admin.messaging().sendMulticast({
+      tokens,
+      notification: {
+        title,
+        body,
+      },
+    });
+    res.status(200).json({ message: "Successfully sent notifications!" });
+  } catch (err) {
+    res
+      .status(err.status || 500)
+      .json({ message: err.message || "Something went wrong!" });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   
  // Get notifications for a specific user (owner or employee)
 router.get('/notifications', async (req, res) => {

@@ -220,6 +220,36 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
   }
 });
 
+
+// Delete Lead API
+router.delete('/deletetask', async (req, res) => {
+  try {
+    const { leadId } = req.body;
+
+    if (!leadId) {
+      return res.status(400).json({ error: "Lead ID is required" });
+    }
+
+    // Reference to the leads collection
+    const leadsRef = db.collection('leads');
+    const leadDoc = await leadsRef.doc(leadId).get();
+
+    if (!leadDoc.exists) {
+      return res.status(404).json({ error: "Lead not found for the given Lead ID" });
+    }
+
+    // Delete the lead document
+    await leadsRef.doc(leadId).delete();
+
+    res.status(200).json({ message: "Lead deleted successfully" });
+  } catch (error) {
+    console.error('Error deleting lead:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+
 const ReassignTask = async (req, res) => {
   try {
     const { leadId, newEmployeeId, newEmployeeName, phase } = req.body;
@@ -555,58 +585,6 @@ router.get('/getPoFiles', async (req, res) => {
 
 
 
-// // Update task route
-// router.post('/updatetask', upload.array('files'), async (req, res) => {
-//   try {
-//     const { status, taskId } = req.body;
-//     const jsonData = { status };
-//     let taskRef;
-//     let documentUrls = [];
-
-//     if (taskId) {
-//       taskRef = db.collection('tasks').doc(taskId);
-//       const taskDoc = await taskRef.get();
-//       if (taskDoc.exists) {
-//         const taskData = taskDoc.data();
-//         documentUrls = taskData.documentUrls || [];
-//       } else {
-//         return res.status(404).json({ error: "Task not found" });
-//       }
-//       await taskRef.update(jsonData);
-//     } else {
-//       taskRef = await db.collection('tasks').add(jsonData);
-//     }
-
-//     for (const document of req.files) {
-//       const storagePath = `documents/${taskRef.id}/${document.originalname}`;
-//       const file = estorage.file(storagePath);
-//       await file.save(document.buffer, { contentType: document.mimetype });
-//       const url = await file.getSignedUrl({
-//         action: 'read',
-//         expires: '03-09-2491' // Adjust expiration date as needed
-//       });
-//       documentUrls.push({ name: document.originalname, url: url[0], storagePath });
-//     }
-
-//     await taskRef.update({ documentUrls });
-
-//     if (status === 'Done') {
-//       const taskData = (await taskRef.get()).data();
-//       await db.collection('History').add(taskData);
-//       await taskRef.delete();
-//     }
-
-//     res.status(200).json({
-//       message: 'Task assigned/updated successfully',
-//       taskId: taskRef.id,
-//       documentUrls
-//     });
-//   } catch (error) {
-//     console.error('Error assigning/updating task:', error);
-//     res.status(500).json({ error: 'Internal Server Error' });
-//   }
-// });
-
 
 router.post('/declineTask', async (req, res) => {
   try {
@@ -637,7 +615,9 @@ router.post('/declineTask', async (req, res) => {
     let taskData = leadData.tasks[taskIndex];
 
     // Update task condition to 'Declined' and set phase to 1
-    taskData.taskCondition = 'Declined';
+    taskData.taskCondition = 'Assigned';
+    taskData.reject = taskData.reject + 1;
+    taskData.submitOrSave = false;
     taskData.phase = phase;
 
     // Include decline reason if provided
@@ -666,7 +646,7 @@ router.post('/declineTask', async (req, res) => {
 
 router.post('/verifiedTask', async (req, res) => {
   try {
-    const { taskId, leadId, phase, rejectORaccept, employeeId} = req.body;
+    const { taskId, leadId, phase, employeeId} = req.body;
 
     // Validate the input
     console.log("DFSDS", employeeId)
@@ -693,7 +673,7 @@ router.post('/verifiedTask', async (req, res) => {
     let taskData = leadData.tasks[taskIndex];
 
     // Update the rejectORaccept field and the Phase
-    taskData.rejectORaccept = rejectORaccept;
+    taskData.verified = true;
     taskData.phase = phase;
     //taskData.taskCondition =  'Done';
 
@@ -701,16 +681,16 @@ router.post('/verifiedTask', async (req, res) => {
     leadData.tasks[taskIndex] = taskData;
     await leadRef.set(leadData);
 
-    // If rejectORaccept is true, copy the task to the history collection
-    if (rejectORaccept === true) {
-      const historyRef = db.collection('history').doc();
-      await historyRef.set({
-        leadId: leadId,
-        taskId: taskId,
-        taskData: taskData,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // // If rejectORaccept is true, copy the task to the history collection
+    // if (rejectORaccept === true) {
+    //   const historyRef = db.collection('history').doc();
+    //   await historyRef.set({
+    //     leadId: leadId,
+    //     taskId: taskId,
+    //     taskData: taskData,
+    //     timestamp: new Date().toISOString()
+    //   });
+    // }
 
      // Check if phase is 2, and reassign the task
      if (phase === 1) {
@@ -737,7 +717,7 @@ router.post('/verifiedTask', async (req, res) => {
       };
 
       // You can use the same `res` or create a new response object as needed
-      await ReassignTask(reassignReq, res); // Call the reassign function
+      //await ReassignTask(reassignReq, res); // Call the reassign function
     }
 
     // Send the response back to the client
