@@ -8,6 +8,7 @@ const taskRoutes = require('./routes/taskRoutes');
 const masterDataRoutes = require('./routes/masterDataRoutes');
 const notificationRoutes = require('./routes/notifcationRoutes'); // Corrected spelling
 const updatePhase1Routes = require('./routes/updatePhase1Routes');
+const filemergeRoutes = require('./routes/filemergeRoutes');
 const admin = require('firebase-admin');
 const http = require('http');
 // const socketIo = require('socket.io'); // Uncomment if using Socket.io
@@ -32,6 +33,7 @@ app.use(taskRoutes);
 app.use(masterDataRoutes);
 app.use(notificationRoutes);
 app.use(updatePhase1Routes);
+app.use(filemergeRoutes);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
