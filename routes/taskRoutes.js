@@ -12,7 +12,7 @@ const db = admin.firestore();
 
 const router = express.Router();
 
-const { notifyWorkAssignment, notifyWorkCompletion,  } = require('./notification');
+const { notifyWorkAssignment, notifyWorkCompletion, sendNotification } = require('./notification');
 
 // Multer setup with memory storage and file size limit
 const upload = multer({
@@ -133,6 +133,15 @@ if (role === 'Employee') {
 });
 
 
+const tokens = [];
+
+
+router.post("/regist", (req, res) => {
+  tokens.push(req.body.token);
+  console.log(tokens);
+  res.status(200).json({ message: "Successfully registered FCM Token!" });
+});
+
 
 
 
@@ -207,13 +216,20 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
     leadData.tasks.push(taskData);
 
     await leadRef.set(leadData);
+
+    console.log("Tok", tokens)
+    sendNotification(
+      tokens,
+      'New Task Assigned',
+      'You have been assigned a new task. Please complete it.'
+    );
     
     res.status(200).json({
       message: 'Task assigned successfully',
       leadId: leadData.leadId,
       taskData
     });
-    await notifyWorkAssignment(employeeId, department);
+    //await notifyWorkAssignment(employeeId, department);
   } catch (error) {
     console.error('Error assigning task:', error);
     res.status(500).json({ error: 'Internal Server Error' });

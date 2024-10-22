@@ -80,10 +80,32 @@ const saveNotification = async (userId, title, body, userType) => {
     console.log("Sending notification...");
     await saveNotification(employeeId, 'WorkDone', `Work Done the work  ${workDetails} now you have to verify `, 'Owner');
   };
+
+
+  
+async function sendNotification(tokens, title, body) {
+  const message = {
+    tokens,
+    notification: {
+      title,
+      body,
+    },
+  };
+
+  try {
+    await admin.messaging().send(message);
+    console.log('Notification sent successfully');
+  } catch (error) {
+    console.error('Error sending notification:', error);
+  }
+}
+
+
   
   // Exporting the functions for use in other modules
   module.exports = {
     notifyWorkDone,
     notifyWorkAssignment,
     notifyWorkCompletion,
+    sendNotification,
   };
