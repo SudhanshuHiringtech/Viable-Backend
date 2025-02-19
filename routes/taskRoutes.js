@@ -132,17 +132,20 @@ if (role === 'Employee') {
   }
 });
 
-
-const tokens = [];
-
+let tokens = [];
 
 router.post("/regist", (req, res) => {
-  tokens.push(req.body.token);
-  console.log(tokens);
-  res.status(200).json({ message: "Successfully registered FCM Token!" });
+  console.log("Received Token:", req.body.token);
+  if (req.body.token) {
+    tokens.push(req.body.token);
+    console.log("Tokens after registration:", tokens);
+    res.status(200).json({ message: "Successfully registered FCM Token!" });
+  } else {
+    res.status(400).json({ error: "Token not provided" });
+  }
 });
 
-
+//console.log("Tok", tokens)
 
 
 router.post('/assigntask', upload.array('files'), async (req, res) => {
@@ -179,6 +182,7 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
     if (existingTaskQuery) {
       return res.status(200).json({ message: 'Task already exists' });
     }
+
 
     const taskId = db.collection('tasks').doc().id;
     const assignedDate = new Date().toISOString();
@@ -217,7 +221,8 @@ router.post('/assigntask', upload.array('files'), async (req, res) => {
 
     await leadRef.set(leadData);
 
-    console.log("Tok", tokens)
+  console.log("tokens chaiye muje", tokens)
+    
     sendNotification(
       tokens,
       'New Task Assigned',

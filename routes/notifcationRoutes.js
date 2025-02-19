@@ -14,14 +14,14 @@ const db = admin.firestore();
 
 const router = express.Router();
 
-const tokens = [];
+// const tokens = [];
 
 
-router.post("/regist", (req, res) => {
-  tokens.push(req.body.token);
-  console.log(tokens);
-  res.status(200).json({ message: "Successfully registered FCM Token!" });
-});
+// router.post("/regist", (req, res) => {
+//   tokens.push(req.body.token);
+//   //console.log(tokens);
+//   res.status(200).json({ message: "Successfully registered FCM Token!" });
+// });
 
 
 

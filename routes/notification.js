@@ -82,23 +82,46 @@ const saveNotification = async (userId, title, body, userType) => {
   };
 
 
+  async function sendNotification(tokens, title, body) {
+    console.log("Tokens received:", tokens);
   
-async function sendNotification(tokens, title, body) {
-  const message = {
-    tokens,
-    notification: {
-      title,
-      body,
-    },
-  };
-
-  try {
-    await admin.messaging().send(message);
-    console.log('Notification sent successfully');
-  } catch (error) {
-    console.error('Error sending notification:', error);
+    // Construct the message object correctly
+    const payload = {
+      notification: {
+        title: title,
+        body: body,
+      },
+      // Optional data payload
+      data: {
+        key1: "value1",
+        key2: "value2",
+      },
+    };
+  
+    try {
+      // Use sendMulticast for multiple tokens
+      const message = {
+        tokens, // Array of tokens
+        ...payload, // Spread the notification and data
+      };
+  
+      const response = await admin.messaging().sendMulticast(message);
+      console.log('Notification sent successfully:', response);
+  
+      // Check for errors in individual results
+      response.responses.forEach((result, index) => {
+        if (result.error) {
+          console.error(`Error for token[${index}]:`, result.error);
+        } else {
+          console.log(`Notification sent to token[${index}] successfully.`);
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error sending notification:', error);
+    }
   }
-}
+  
 
 
   
